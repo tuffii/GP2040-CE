@@ -61,6 +61,10 @@ import HETrigger, {
 	HETriggerScheme,
 	HETriggerState,
 } from '../Addons/HETrigger';
+import DualPicoHost, {
+	dualPicoHostScheme,
+	dualPicoHostState
+} from '../Addons/DualPicoHost';
 
 export type AddonPropTypes = {
 	values: typeof DEFAULT_VALUES;
@@ -85,6 +89,7 @@ const schema = yup.object().shape({
 	...wiiScheme,
 	...focusModeScheme,
 	...keyboardScheme,
+	...dualPicoHostScheme,
 	...rotaryScheme,
 	...pcf8575Scheme,
 	...drv8833RumbleScheme,
@@ -110,6 +115,7 @@ export const DEFAULT_VALUES = {
 	...tg16State,
 	...focusModeState,
 	...keyboardState,
+	...dualPicoHostState,
 	...rotaryState,
 	...pcf8575State,
 	...drv8833RumbleState,
@@ -135,6 +141,7 @@ const ADDONS = [
 	TG16,
 	FocusMode,
 	Keyboard,
+	DualPicoHost,
 	GamepadUSBHost,
 	Rotary,
 	PCF8575,

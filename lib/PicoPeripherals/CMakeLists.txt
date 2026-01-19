@@ -3,6 +3,7 @@ interval_override.cpp
 peripheral_i2c.cpp
 peripheral_spi.cpp
 peripheral_usb.cpp
+peripheral_uart.cpp
 )
 target_include_directories(PicoPeripherals PRIVATE .)
 target_include_directories(PicoPeripherals INTERFACE .)
@@ -12,5 +13,6 @@ hardware_dma
 hardware_gpio
 hardware_i2c
 hardware_spi
+hardware_uart
 tinyusb_pico_pio_usb
 )

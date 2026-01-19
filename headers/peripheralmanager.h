@@ -4,6 +4,7 @@
 #include "peripheral_i2c.h"
 #include "peripheral_spi.h"
 #include "peripheral_usb.h"
+#include "peripheral_uart.h"
 #include "i2cdevicebase.h"
 
 #define PMGR PeripheralManager::getInstance()
@@ -26,14 +27,17 @@ public:
     PeripheralI2C* getI2C(uint8_t block);
     PeripheralSPI* getSPI(uint8_t block);
     PeripheralUSB* getUSB(uint8_t block);
+    PeripheralUART* getUART(uint8_t block);
 
     void initUSB();
     void initI2C();
     void initSPI();
+    void initUART();
 
     bool isI2CEnabled(uint8_t block);
     bool isSPIEnabled(uint8_t block);
     bool isUSBEnabled(uint8_t block);
+    bool isUARTEnabled(uint8_t block);
 
     PeripheralI2CScanResult scanForI2CDevice(std::vector<uint8_t> addressList);
 private:
@@ -46,6 +50,9 @@ private:
     PeripheralSPI blockSPI1;
 
     PeripheralUSB blockUSB0;
+    
+    PeripheralUART blockUART0;
+    PeripheralUART blockUART1;
 };
 
 #endif

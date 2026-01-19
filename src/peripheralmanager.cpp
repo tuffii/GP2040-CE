@@ -18,6 +18,32 @@ void PeripheralManager::initSPI(){
     if (peripheralOptions.blockSPI1.enabled) blockSPI1.setConfig(1, peripheralOptions.blockSPI1.tx, peripheralOptions.blockSPI1.rx, peripheralOptions.blockSPI1.sck, peripheralOptions.blockSPI1.cs);
 }
 
+void PeripheralManager::initUART() {
+    const PeripheralOptions& options = Storage::getInstance().getPeripheralOptions();
+
+    if (options.blockUART0.enabled) {
+        blockUART0.setConfig(
+            0,
+            options.blockUART0.txPin, 
+            options.blockUART0.rxPin, 
+            options.blockUART0.ctsPin, 
+            options.blockUART0.rtsPin, 
+            4000000
+        );
+    }
+
+    if (options.blockUART1.enabled) {
+        blockUART1.setConfig(
+            1,
+            options.blockUART1.txPin, 
+            options.blockUART1.rxPin, 
+            options.blockUART1.ctsPin, 
+            options.blockUART1.rtsPin, 
+            4000000
+        );
+    }
+}
+
 PeripheralI2C* PeripheralManager::getI2C(uint8_t block) {
     if (block < NUM_I2CS) {
         return ((block == 0) ? &blockI2C0 : &blockI2C1);
@@ -39,6 +65,13 @@ PeripheralUSB* PeripheralManager::getUSB(uint8_t block) {
     return nullptr;
 }
 
+PeripheralUART* PeripheralManager::getUART(uint8_t block) {
+    if (block < 2) { 
+        return ((block == 0) ? &blockUART0 : &blockUART1);
+    }
+    return nullptr;
+}
+
 bool PeripheralManager::isI2CEnabled(uint8_t block) {
     if (block < NUM_I2CS) {
         return (((block == 0) ? blockI2C0.configured : blockI2C1.configured));
@@ -56,6 +89,14 @@ bool PeripheralManager::isSPIEnabled(uint8_t block) {
 bool PeripheralManager::isUSBEnabled(uint8_t block) {
     if (block < NUM_USBS) {
         return (((block == 0) ? blockUSB0.configured : false));
+    }
+    return false;
+}
+
+bool PeripheralManager::isUARTEnabled(uint8_t block) {
+    const PeripheralOptions& peripheralOptions = Storage::getInstance().getPeripheralOptions();
+    if (block < 2) {
+        return (block == 0) ? peripheralOptions.blockUART0.enabled : peripheralOptions.blockUART1.enabled;
     }
     return false;
 }

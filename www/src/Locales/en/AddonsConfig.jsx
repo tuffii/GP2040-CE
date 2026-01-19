@@ -191,4 +191,7 @@ export default {
 	'tg16-extension-data-pin2-label': 'Data GPIO Pin 2 (D_SELECT)',
 	'tg16-extension-data-pin3-label': 'Data GPIO Pin 3 (L_RUN)',
 	'tg16-extension-desc-header': 'PC Engine/TurboGrafx-16 Extension Mapping',
+	"dual-pico-host-header-text": "Dual Pico Host (USB Host Passthrough)",
+	"dual-pico-host-desc-text": "Enables input handling from a second Raspberry Pi Pico acting as a USB Host via UART.",
+	"dual-pico-host-uart-notice": "Make sure to configure UART1 (TX/RX/CTS/RTS) in 'Peripheral Mapping' configuration.",
 };
