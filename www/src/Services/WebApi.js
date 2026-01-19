@@ -123,6 +123,20 @@ export const basePeripheralMapping = {
 			enable5v: -1,
 			order: 0,
 		},
+		uart0: {
+			enabled: 0,
+			tx: -1,
+			rx: -1,
+			cts: -1,
+			rts: -1,
+		},
+		uart1: {
+			enabled: 0,
+			tx: -1,
+			rx: -1,
+			cts: -1,
+			rts: -1,
+		},
 	},
 };
 

@@ -38,6 +38,29 @@ export const USB_BLOCKS = [
 	{ label: 'usb0', value: 0, pins: { dp: [], enable5v: [] } },
 ];
 
+export const UART_BLOCKS = [
+	{
+		label: 'uart0',
+		value: 0,
+		pins: {
+			tx: [0, 12, 16, 28],
+			rx: [1, 13, 17, 29],
+			cts: [2, 14, 18],
+			rts: [3, 15, 19],
+		},
+	},
+	{
+		label: 'uart1',
+		value: 1,
+		pins: {
+			tx: [4, 8, 20, 24],
+			rx: [5, 9, 21, 25],
+			cts: [6, 10, 22, 26],
+			rts: [7, 11, 23, 27],
+		},
+	},
+];
+
 export const PERIPHERAL_DEVICES = [
 	{
 		label: 'i2c',
@@ -70,5 +93,12 @@ export const PERIPHERAL_DEVICES = [
 				{ label: 'D-/D+', value: 1 },
 			],
 		},
+	},
+	{
+		label: 'uart',
+		value: 3,
+		blocks: UART_BLOCKS,
+		pinTable: true,
+		options: {},
 	},
 ];

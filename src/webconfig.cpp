@@ -1307,6 +1307,18 @@ std::string getPeripheralOptions()
     writeDoc(doc, "peripheral", "usb0", "enable5v",peripheralOptions.blockUSB0.enable5v);
     writeDoc(doc, "peripheral", "usb0", "order",   peripheralOptions.blockUSB0.order);
 
+    writeDoc(doc, "peripheral", "uart0", "enabled", peripheralOptions.blockUART0.enabled);
+    writeDoc(doc, "peripheral", "uart0", "tx",      peripheralOptions.blockUART0.txPin);
+    writeDoc(doc, "peripheral", "uart0", "rx",      peripheralOptions.blockUART0.rxPin);
+    writeDoc(doc, "peripheral", "uart0", "cts",     peripheralOptions.blockUART0.ctsPin);
+    writeDoc(doc, "peripheral", "uart0", "rts",     peripheralOptions.blockUART0.rtsPin);
+
+    writeDoc(doc, "peripheral", "uart1", "enabled", peripheralOptions.blockUART1.enabled);
+    writeDoc(doc, "peripheral", "uart1", "tx",      peripheralOptions.blockUART1.txPin);
+    writeDoc(doc, "peripheral", "uart1", "rx",      peripheralOptions.blockUART1.rxPin);
+    writeDoc(doc, "peripheral", "uart1", "cts",     peripheralOptions.blockUART1.ctsPin);
+    writeDoc(doc, "peripheral", "uart1", "rts",     peripheralOptions.blockUART1.rtsPin);
+
     return serialize_json(doc);
 }
 
@@ -1364,6 +1376,18 @@ std::string setPeripheralOptions()
     docToValue(peripheralOptions.blockUSB0.enabled, doc, "peripheral", "usb0", "enabled");
     docToValue(peripheralOptions.blockUSB0.enable5v, doc, "peripheral", "usb0", "enable5v");
     docToValue(peripheralOptions.blockUSB0.order, doc, "peripheral", "usb0", "order");
+
+    docToValue(peripheralOptions.blockUART0.enabled, doc, "peripheral", "uart0", "enabled");
+    docToPin(peripheralOptions.blockUART0.txPin, doc, "peripheral", "uart0", "tx");
+    docToPin(peripheralOptions.blockUART0.rxPin, doc, "peripheral", "uart0", "rx");
+    docToPin(peripheralOptions.blockUART0.ctsPin, doc, "peripheral", "uart0", "cts");
+    docToPin(peripheralOptions.blockUART0.rtsPin, doc, "peripheral", "uart0", "rts");
+
+    docToValue(peripheralOptions.blockUART1.enabled, doc, "peripheral", "uart1", "enabled");
+    docToPin(peripheralOptions.blockUART1.txPin, doc, "peripheral", "uart1", "tx");
+    docToPin(peripheralOptions.blockUART1.rxPin, doc, "peripheral", "uart1", "rx");
+    docToPin(peripheralOptions.blockUART1.ctsPin, doc, "peripheral", "uart1", "cts");
+    docToPin(peripheralOptions.blockUART1.rtsPin, doc, "peripheral", "uart1", "rts");
 
     // need to reserve previous/next pin for dp
     GpioMappingInfo* gpioMappings = Storage::getInstance().getGpioMappings().pins;
