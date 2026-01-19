@@ -3,8 +3,21 @@
 #include "pico/stdlib.h"
 #include <cstdio>
 
-// -- Вспомогательная функция CRC32 --
-// Полином 0xEDB88320 (Ethernet, ZIP, etc.)
+#ifndef LED_DEBUG_PIN
+#define LED_DEBUG_PIN 25 
+#endif
+
+// Вспомогательная функция для мигания
+void debug_blink(int count, int speed_ms) {
+    for (int i = 0; i < count; i++) {
+        gpio_put(LED_DEBUG_PIN, 1);
+        sleep_ms(speed_ms);
+        gpio_put(LED_DEBUG_PIN, 0);
+        sleep_ms(speed_ms);
+    }
+    sleep_ms(500); // Пауза после серии
+}
+
 static uint32_t crc32_pkt(const uint8_t *data, size_t len) {
     uint32_t crc = 0xFFFFFFFF;
     for (size_t i = 0; i < len; i++) {
@@ -18,50 +31,65 @@ static uint32_t crc32_pkt(const uint8_t *data, size_t len) {
 
 bool DualPicoHostAddon::available() {
     const DualPicoHostOptions& options = Storage::getInstance().getAddonOptions().dualPicoHostOptions;
-    // Аддон доступен только если включен в опциях И если UART настроен в PeripheralManager
-    // Для простоты жестко проверяем UART1, как договаривались
-    return options.enabled && PeripheralManager::getInstance().isUARTEnabled(1);
+    return options.enabled;
 }
 
 void DualPicoHostAddon::setup() {
-    // 1. Сначала проверяем, включен ли UART1 в настройках Peripheral Manager
-    if (!PeripheralManager::getInstance().isUARTEnabled(1)) {
-        printf("[DualPicoHost] Error: UART1 is not enabled in Peripheral Mapping!\n");
+    // --- LED START ---
+    gpio_init(LED_DEBUG_PIN);
+    gpio_set_dir(LED_DEBUG_PIN, GPIO_OUT);
+    gpio_put(LED_DEBUG_PIN, 1); sleep_ms(1000); gpio_put(LED_DEBUG_PIN, 0); sleep_ms(500);
+
+    // --- 1. ПРИНУДИТЕЛЬНАЯ ИНИЦИАЛИЗАЦИЯ ---
+    // Это решает проблему порядка загрузки. Мы просим менеджер настроить UART прямо сейчас.
+    PeripheralManager::getInstance().initUART();
+
+    // --- 2. ПРОВЕРКА НАСТРОЕК В ХРАНИЛИЩЕ (Сырые данные) ---
+    const PeripheralOptions& periphOptions = Storage::getInstance().getPeripheralOptions();
+    
+    if (!periphOptions.blockUART1.enabled) {
+        // ОШИБКА 2: В настройках выключен UART1
+        debug_blink(2, 300);
         active_uart = nullptr;
         return;
     }
 
-    // 2. Получаем объект
+    if (periphOptions.blockUART1.txPin == -1 || periphOptions.blockUART1.rxPin == -1) {
+        // ОШИБКА 3: Пины не назначены (Unset)
+        debug_blink(3, 300);
+        active_uart = nullptr;
+        return;
+    }
+
+    // --- 3. ПОЛУЧЕНИЕ ОБЪЕКТА ---
     PeripheralUART* pUart = PeripheralManager::getInstance().getUART(1);
     if (!pUart) {
+        // Этого быть не должно, если initUART() отработал
+        debug_blink(10, 100); // Panic
         active_uart = nullptr;
         return;
     }
 
-    // 3. (Опционально, но желательно) Проверяем флаг configured внутри PeripheralUART
-    // Для этого нужно добавить метод isConfigured() в PeripheralUART или сделать поле public
-    // В вашем коде поле configured публичное.
+    // --- 4. ПРОВЕРКА СТАТУСА ---
     if (!pUart->configured) {
-        printf("[DualPicoHost] Error: UART1 is enabled but not configured properly!\n");
+        // ОШИБКА 4: Объект есть, но setup() внутри него не прошел.
+        // Скорее всего проблема в peripheral_uart.cpp (мы ее исправили выше)
+        debug_blink(4, 300);
         active_uart = nullptr;
         return;
     }
+
+    // --- 5. УСПЕХ ---
+    debug_blink(5, 100); // 5 быстрых вспышек = OK
 
     active_uart = pUart->getDriver();
-
-    // Сброс буфера чтения
     rx_idx = 0;
     rx_escaped = false;
+    connection_established = false;
+    last_handshake_sent = 0;
+    test_button_pressed = false;
 
-    // Отправляем B_INIT
-    b_init_t msg;
-    msg.command = DualCommand::B_INIT;
-    msg.interval_override = 0; 
-    
-    // Тут безопасно, так как мы проверили, что UART инициализирован
-    serial_write((uint8_t*)&msg, sizeof(msg));
-    
-    printf("[DualPicoHost] Setup complete. B_INIT sent.\n");
+    send_b_init();
 }
 
 void DualPicoHostAddon::reinit() {
@@ -70,103 +98,87 @@ void DualPicoHostAddon::reinit() {
 
 void DualPicoHostAddon::process() {
     if (!active_uart) return;
+
+    uint32_t now = to_ms_since_boot(get_absolute_time());
+
+    // HEARTBEAT: Короткая вспышка раз в секунду, если нет связи
+    if (!connection_established && (now - last_handshake_sent > 1000)) {
+        gpio_put(LED_DEBUG_PIN, 1);
+        busy_wait_us(10000); 
+        gpio_put(LED_DEBUG_PIN, 0);
+        
+        send_b_init();
+        last_handshake_sent = now;
+    }
+
     process_serial();
 }
 
-// Отправка данных с экранированием и CRC
-void DualPicoHostAddon::serial_write(const uint8_t* data, uint16_t len) {
-    if (!active_uart) return;
-
-    uint32_t crc = crc32_pkt(data, len);
-
-    // Начало пакета
-    uart_putc_raw(active_uart, (char)SERIAL_END);
-
-    // Данные
-    for (int i = 0; i < len; i++) {
-        serial_putc_escaped(data[i], active_uart);
+void DualPicoHostAddon::preprocess() {
+    if (test_button_pressed) {
+        Storage::getInstance().GetGamepad()->state.buttons |= GAMEPAD_MASK_B1;
     }
+}
 
-    // CRC (4 байта, Little Endian)
-    for (int i = 0; i < 4; i++) {
-        uint8_t b = (crc >> (i * 8)) & 0xFF;
-        serial_putc_escaped(b, active_uart);
-    }
+// --- UART TX ---
 
-    // Конец пакета
-    uart_putc_raw(active_uart, (char)SERIAL_END);
+void DualPicoHostAddon::send_b_init() {
+    b_init_t msg;
+    msg.command = DualCommand::B_INIT;
+    msg.interval_override = 0; 
+    serial_write((uint8_t*)&msg, sizeof(msg));
 }
 
 void DualPicoHostAddon::serial_putc_escaped(uint8_t b, uart_inst_t* uart) {
     switch (b) {
-        case SERIAL_END:
-            uart_putc_raw(uart, (char)SERIAL_ESC);
-            uart_putc_raw(uart, (char)SERIAL_ESC_END);
-            break;
-        case SERIAL_ESC:
-            uart_putc_raw(uart, (char)SERIAL_ESC);
-            uart_putc_raw(uart, (char)SERIAL_ESC_ESC);
-            break;
-        default:
-            uart_putc_raw(uart, (char)b);
-            break;
+        case SERIAL_END: uart_putc_raw(uart, (char)SERIAL_ESC); uart_putc_raw(uart, (char)SERIAL_ESC_END); break;
+        case SERIAL_ESC: uart_putc_raw(uart, (char)SERIAL_ESC); uart_putc_raw(uart, (char)SERIAL_ESC_ESC); break;
+        default: uart_putc_raw(uart, (char)b); break;
     }
 }
 
+void DualPicoHostAddon::serial_write(const uint8_t* data, uint16_t len) {
+    if (!active_uart) return;
+    uint32_t crc = crc32_pkt(data, len);
+    uart_putc_raw(active_uart, (char)SERIAL_END);
+    for (int i = 0; i < len; i++) serial_putc_escaped(data[i], active_uart);
+    for (int i = 0; i < 4; i++) serial_putc_escaped((crc >> (i * 8)) & 0xFF, active_uart);
+    uart_putc_raw(active_uart, (char)SERIAL_END);
+}
+
+// --- UART RX ---
+
 void DualPicoHostAddon::process_serial() {
-    // Читаем, пока есть данные в буфере UART
-    while (uart_is_readable(active_uart)) {
+    int bytes_read = 0;
+    while (uart_is_readable(active_uart) && bytes_read < 64) {
         uint8_t c = uart_getc(active_uart);
+        bytes_read++;
+
+        // RX ACTIVITY: Если связи нет, инвертируем LED при каждом байте
+        if (!connection_established) {
+            gpio_put(LED_DEBUG_PIN, !gpio_get(LED_DEBUG_PIN));
+        }
 
         if (rx_escaped) {
-            // Если предыдущий байт был ESC
-            if (rx_idx < sizeof(rx_buffer)) {
-                if (c == SERIAL_ESC_END) {
-                    rx_buffer[rx_idx++] = SERIAL_END;
-                } else if (c == SERIAL_ESC_ESC) {
-                    rx_buffer[rx_idx++] = SERIAL_ESC;
-                } else {
-                    // Ошибка протокола, записываем как есть
-                    rx_buffer[rx_idx++] = c;
-                }
-            }
             rx_escaped = false;
+            if (c == SERIAL_ESC_END) c = SERIAL_END;
+            else if (c == SERIAL_ESC_ESC) c = SERIAL_ESC;
+            if (rx_idx < sizeof(rx_buffer)) rx_buffer[rx_idx++] = c;
         } else {
             if (c == SERIAL_END) {
-                // Конец пакета. Проверяем целостность.
-                // Пакет должен быть минимум 1 байт (команда) + 4 байта (CRC) = 5 байт
-                if (rx_idx >= 5) {
-                    // CRC лежит в последних 4 байтах буфера (Little Endian)
-                    uint32_t received_crc = 
-                        rx_buffer[rx_idx-4] | 
-                        (rx_buffer[rx_idx-3] << 8) | 
-                        (rx_buffer[rx_idx-2] << 16) | 
-                        (rx_buffer[rx_idx-1] << 24);
-
-                    // Считаем CRC от начала буфера до (длина - 4)
-                    uint32_t calculated_crc = crc32_pkt(rx_buffer, rx_idx - 4);
-
-                    if (received_crc == calculated_crc) {
-                        // CRC совпал, обрабатываем пакет (без последних 4 байт CRC)
+                if (rx_idx > 4) { 
+                    uint32_t rcv_crc = rx_buffer[rx_idx-4] | (rx_buffer[rx_idx-3] << 8) | (rx_buffer[rx_idx-2] << 16) | (rx_buffer[rx_idx-1] << 24);
+                    uint32_t calc_crc = crc32_pkt(rx_buffer, rx_idx - 4);
+                    if (rcv_crc == calc_crc) {
                         handle_packet(rx_buffer, rx_idx - 4);
-                    } else {
-                        printf("[DualPicoHost] CRC Mismatch! Rx: %08X, Calc: %08X\n", received_crc, calculated_crc);
-                    }
+                    } 
                 }
-                // Сбрасываем буфер для следующего пакета
                 rx_idx = 0;
             } else if (c == SERIAL_ESC) {
-                // Начало escape-последовательности
                 rx_escaped = true;
             } else {
-                // Обычный байт данных
-                if (rx_idx < sizeof(rx_buffer)) {
-                    rx_buffer[rx_idx++] = c;
-                } else {
-                    // Переполнение буфера, сбрасываем
-                    rx_idx = 0;
-                    printf("[DualPicoHost] Buffer overflow\n");
-                }
+                if (rx_idx < sizeof(rx_buffer)) rx_buffer[rx_idx++] = c;
+                else rx_idx = 0;
             }
         }
     }
@@ -174,34 +186,35 @@ void DualPicoHostAddon::process_serial() {
 
 void DualPicoHostAddon::handle_packet(const uint8_t* data, uint16_t len) {
     if (len == 0) return;
-
     DualCommand cmd = (DualCommand)data[0];
 
-    // Простая отладка: выводим тип команды
     switch (cmd) {
-        case DualCommand::DEVICE_CONNECTED: {
-            device_connected_t* msg = (device_connected_t*)data;
-            printf("[DualPicoHost] Device Connected! VID: %04X PID: %04X\n", msg->vid, msg->pid);
-            break;
-        }
-        case DualCommand::DEVICE_DISCONNECTED:
-            printf("[DualPicoHost] Device Disconnected\n");
-            break;
-        case DualCommand::REPORT_RECEIVED:
-            // Это самая частая команда (движение мыши, нажатие клавиш)
-            // Пока просто логируем факт получения, чтобы не спамить в консоль слишком сильно
-            // printf("[DualPicoHost] Report Received (Len: %d)\n", len);
-            break;
         case DualCommand::REQUEST_B_INIT:
-            printf("[DualPicoHost] Side B requested init. Resending B_INIT...\n");
-            // Повторная отправка B_INIT
-            b_init_t msg;
-            msg.command = DualCommand::B_INIT;
-            msg.interval_override = 0;
-            serial_write((uint8_t*)&msg, sizeof(msg));
+            // SUCCESS: Связь установлена. Горим постоянно.
+            connection_established = true; 
+            gpio_put(LED_DEBUG_PIN, 1); 
+            send_b_init();
+            break;
+
+        case DualCommand::REPORT_RECEIVED:
+            if (connection_established) {
+                 gpio_put(LED_DEBUG_PIN, 0);
+                 busy_wait_us(200); 
+                 gpio_put(LED_DEBUG_PIN, 1);
+                 
+                 // Test Spacebar (0x2C)
+                 if (len >= 3 + 8) {
+                     bool space = false;
+                     for (int i = 5; i < 11; i++) { 
+                         if (data[i] == 0x2C) { 
+                             space = true; break; 
+                         }
+                     }
+                     test_button_pressed = space;
+                 }
+            }
             break;
         default:
-            printf("[DualPicoHost] Unknown command: %d\n", (int)cmd);
             break;
     }
 }

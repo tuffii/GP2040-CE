@@ -18,22 +18,19 @@ void PeripheralUART::setConfig(uint8_t block, int8_t tx, int8_t rx, int8_t cts, 
         _CTS = cts;
         _RTS = rts;
         _Speed = speed;
-        configured = true;
         setup();
     }
 }
 
 void PeripheralUART::setup() {
-    if (!configured || _TX == -1 || _RX == -1) return;
+    configured = false;
+    if (_TX == -1 || _RX == -1) return;
 
-    // Инициализация UART
+    // Инициализация
     uart_init(_UART, _Speed);
-
-    // Настройка функций GPIO
     gpio_set_function(_TX, GPIO_FUNC_UART);
     gpio_set_function(_RX, GPIO_FUNC_UART);
 
-    // Настройка аппаратного управления потоком
     bool useFlowControl = (_CTS != -1 && _RTS != -1);
     if (useFlowControl) {
         gpio_set_function(_CTS, GPIO_FUNC_UART);
@@ -43,10 +40,11 @@ void PeripheralUART::setup() {
         uart_set_hw_flow(_UART, false, false);
     }
 
-    // Включение FIFO
     uart_set_fifo_enabled(_UART, true);
-    // Отключение конвертации CRLF
     uart_set_translate_crlf(_UART, false);
+
+    // Только теперь считаем, что все настроено
+    configured = true;
 }
 
 bool PeripheralUART::isWritable() {
