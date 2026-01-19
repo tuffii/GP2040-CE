@@ -1873,6 +1873,9 @@ std::string setAddonOptions()
     docToValue(heTriggerOptions.emaSmoothing, doc, "heTriggerSmoothing");
     docToValue(heTriggerOptions.smoothingFactor, doc, "heTriggerSmoothingFactor");
 
+    DualPicoHostOptions& dualPicoHostOptions = Storage::getInstance().getAddonOptions().dualPicoHostOptions;
+    docToValue(dualPicoHostOptions.enabled, doc, "DualPicoHostAddonEnabled");
+
     EventManager::getInstance().triggerEvent(new GPStorageSaveEvent(true));
 
     return serialize_json(doc);
@@ -2326,6 +2329,9 @@ std::string getAddonOptions()
     writeDoc(doc, "muxADCPin3", cleanPin(heTriggerOptions.muxADCPin3));
     writeDoc(doc, "heTriggerSmoothing", heTriggerOptions.emaSmoothing);
     writeDoc(doc, "heTriggerSmoothingFactor", heTriggerOptions.smoothingFactor);
+
+    const DualPicoHostOptions& dualPicoHostOptions = Storage::getInstance().getAddonOptions().dualPicoHostOptions;
+    writeDoc(doc, "DualPicoHostAddonEnabled", dualPicoHostOptions.enabled);
 
     return serialize_json(doc);
 }
