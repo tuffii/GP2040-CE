@@ -7,6 +7,9 @@
 #define LED_DEBUG_PIN 25 
 #endif
 
+// Центр стика (для 16-бит это ~32767)
+#define GAMEPAD_JOYSTICK_MID_VAL 0x7FFF 
+
 // Вспомогательная функция для мигания
 void debug_blink(int count, int speed_ms) {
     for (int i = 0; i < count; i++) {
@@ -81,10 +84,12 @@ void DualPicoHostAddon::setup() {
     rx_escaped = false;
     connection_established = false;
     last_handshake_sent = 0;
-    test_button_pressed = false;
 
     // Очистка карты устройств
     for(int i=0; i<32; i++) dev_type_map[i] = 0;
+    
+    // Сброс состояния ввода
+    reset_host_state();
 
     send_b_init();
 }
@@ -111,9 +116,87 @@ void DualPicoHostAddon::process() {
     process_serial();
 }
 
+// --- ВНЕДРЕНИЕ ВВОДА В СИСТЕМУ ---
 void DualPicoHostAddon::preprocess() {
-    if (test_button_pressed) {
-        Storage::getInstance().GetGamepad()->state.buttons |= GAMEPAD_MASK_B1;
+    Gamepad *gamepad = Storage::getInstance().GetGamepad();
+    
+    // Накладываем наше состояние на состояние геймпада
+    gamepad->state.dpad     |= _host_state.dpad;
+    gamepad->state.buttons  |= _host_state.buttons;
+    
+    // Для стиков простая логика: если наш стик отклонен, используем его значение.
+    // Если наши стики в центре (дефолт), не трогаем, чтобы работали стики самого геймпада.
+    if (_host_state.lx != GAMEPAD_JOYSTICK_MID_VAL) gamepad->state.lx = _host_state.lx;
+    if (_host_state.ly != GAMEPAD_JOYSTICK_MID_VAL) gamepad->state.ly = _host_state.ly;
+    if (_host_state.rx != GAMEPAD_JOYSTICK_MID_VAL) gamepad->state.rx = _host_state.rx;
+    if (_host_state.ry != GAMEPAD_JOYSTICK_MID_VAL) gamepad->state.ry = _host_state.ry;
+}
+
+// --- ЛОГИКА ОБРАБОТКИ ВВОДА (НОВОЕ) ---
+
+void DualPicoHostAddon::reset_host_state() {
+    _host_state.dpad = 0;
+    _host_state.buttons = 0;
+    _host_state.lx = GAMEPAD_JOYSTICK_MID_VAL;
+    _host_state.ly = GAMEPAD_JOYSTICK_MID_VAL;
+    _host_state.rx = GAMEPAD_JOYSTICK_MID_VAL;
+    _host_state.ry = GAMEPAD_JOYSTICK_MID_VAL;
+}
+
+// Разбор отчета клавиатуры (Boot Protocol)
+// report_data[0] = Modifiers
+// report_data[1] = Reserved
+// report_data[2..7] = Keycodes
+void DualPicoHostAddon::process_kbd_report(const uint8_t* report_data) {
+    reset_host_state();
+
+    // 1. Обработка Модификаторов (Shift, Ctrl, Alt, GUI)
+    uint8_t modifiers = report_data[0];
+    
+    // Пример: Left Shift как Select
+    // 0x02 = Left Shift, 0x20 = Right Shift
+    if (modifiers & 0x02) _host_state.buttons |= GAMEPAD_MASK_S1; 
+
+    // 2. Обработка клавиш (6-KRO)
+    for (int i = 2; i < 8; i++) {
+        uint8_t code = report_data[i];
+        if (code == 0) continue;
+
+        switch (code) {
+            // --- WASD ---
+            case 0x1A: /* W */ _host_state.dpad |= GAMEPAD_MASK_UP;    break;
+            case 0x16: /* S */ _host_state.dpad |= GAMEPAD_MASK_DOWN;  break;
+            case 0x04: /* A */ _host_state.dpad |= GAMEPAD_MASK_LEFT;  break;
+            case 0x07: /* D */ _host_state.dpad |= GAMEPAD_MASK_RIGHT; break;
+
+            // --- Стрелки ---
+            case 0x52: /* Up */    _host_state.dpad |= GAMEPAD_MASK_UP;    break;
+            case 0x51: /* Down */  _host_state.dpad |= GAMEPAD_MASK_DOWN;  break;
+            case 0x50: /* Left */  _host_state.dpad |= GAMEPAD_MASK_LEFT;  break;
+            case 0x4F: /* Right */ _host_state.dpad |= GAMEPAD_MASK_RIGHT; break;
+
+            // --- Основные кнопки (Layout под аркаду) ---
+            case 0x0D: /* J */ _host_state.buttons |= GAMEPAD_MASK_B1; break; // Cross / A
+            case 0x0E: /* K */ _host_state.buttons |= GAMEPAD_MASK_B2; break; // Circle / B
+            case 0x18: /* U */ _host_state.buttons |= GAMEPAD_MASK_B3; break; // Square / X
+            case 0x0C: /* I */ _host_state.buttons |= GAMEPAD_MASK_B4; break; // Triangle / Y
+
+            // --- Триггеры / Бамперы ---
+            case 0x0B: /* H */ _host_state.buttons |= GAMEPAD_MASK_L1; break;
+            case 0x0F: /* L */ _host_state.buttons |= GAMEPAD_MASK_R1; break;
+            case 0x33: /* ; */ _host_state.buttons |= GAMEPAD_MASK_R2; break;
+            case 0x0A: /* G */ _host_state.buttons |= GAMEPAD_MASK_L2; break;
+
+            // --- Меню ---
+            case 0x28: /* Enter */ _host_state.buttons |= GAMEPAD_MASK_S2; break; // Start
+            case 0x29: /* Esc */   _host_state.buttons |= GAMEPAD_MASK_A1; break; // Home
+            case 0x2B: /* Tab */   _host_state.buttons |= GAMEPAD_MASK_S1; break; // Select
+
+            // --- Дополнительно ---
+            case 0x2C: /* Space */ _host_state.buttons |= GAMEPAD_MASK_B1; break; // Прыжок на пробел
+
+            default: break;
+        }
     }
 }
 
@@ -187,13 +270,12 @@ void DualPicoHostAddon::handle_packet(const uint8_t* data, uint16_t len) {
 
     switch (cmd) {
         case DualCommand::REQUEST_B_INIT:
-            // SUCCESS: Связь установлена. Горим постоянно.
+            // SUCCESS: Связь установлена.
             connection_established = true; 
             gpio_put(LED_DEBUG_PIN, 1); 
             send_b_init();
             break;
 
-        // --- НОВАЯ ЛОГИКА ПОДКЛЮЧЕНИЯ УСТРОЙСТВ ---
         case DualCommand::DEVICE_CONNECTED:
             if (len >= sizeof(device_connected_t)) {
                 const device_connected_t* pkt = (const device_connected_t*)data;
@@ -201,11 +283,10 @@ void DualPicoHostAddon::handle_packet(const uint8_t* data, uint16_t len) {
                     // Сохраняем тип устройства
                     dev_type_map[pkt->dev_addr] = pkt->itf_num;
 
-                    // СПЕЦИАЛЬНЫЙ СИГНАЛ: 5 быстрых вспышек при подключении клавы/мыши
-                    // Это подтвердит, что ивент обработан
-                    gpio_put(LED_DEBUG_PIN, 0); // выключаем
-                    debug_blink(6, 100);
-                    if (connection_established) gpio_put(LED_DEBUG_PIN, 1); // возвращаем свет
+                    // 5 быстрых вспышек (CONNECT)
+                    gpio_put(LED_DEBUG_PIN, 0); 
+                    debug_blink(5, 50);         
+                    if (connection_established) gpio_put(LED_DEBUG_PIN, 1); 
                 }
             }
             break;
@@ -214,7 +295,6 @@ void DualPicoHostAddon::handle_packet(const uint8_t* data, uint16_t len) {
             if (len >= sizeof(device_disconnected_t)) {
                 const device_disconnected_t* pkt = (const device_disconnected_t*)data;
                 if (pkt->dev_addr < 32) {
-                    // Очищаем запись о устройстве
                     dev_type_map[pkt->dev_addr] = 0;
 
                     // 3 средних вспышки (DISCONNECT)
@@ -224,23 +304,32 @@ void DualPicoHostAddon::handle_packet(const uint8_t* data, uint16_t len) {
                 }
             }
             break;
-        // -------------------------------------------
 
         case DualCommand::REPORT_RECEIVED:
             if (connection_established) {
-                 gpio_put(LED_DEBUG_PIN, 0);
-                 busy_wait_us(200); 
-                 gpio_put(LED_DEBUG_PIN, 1);
+                 const report_received_t* pkt = (const report_received_t*)data;
+                 uint8_t addr = pkt->dev_addr;
                  
-                 // Test Spacebar (0x2C) - старая логика
-                 if (len >= 3 + 8) {
-                     bool space = false;
-                     for (int i = 5; i < 11; i++) { 
-                         if (data[i] == 0x2C) { 
-                             space = true; break; 
-                         }
-                     }
-                     test_button_pressed = space;
+                 // Определяем, клавиатура ли это
+                 bool is_keyboard = false;
+                 
+                 // 1. Проверка по карте устройств (если успели поймать CONNECT)
+                 if (addr < 32 && dev_type_map[addr] == 1) { // 1 = Keyboard Interface Protocol
+                     is_keyboard = true;
+                 }
+                 // 2. Fallback: если тип неизвестен, но длина похожа на Boot Keyboard Report
+                 // Заголовок (3 байта) + Отчет (8 байт) = 11 байт
+                 else if (addr < 32 && dev_type_map[addr] == 0 && len == 11) {
+                     is_keyboard = true;
+                 }
+
+                 if (is_keyboard) {
+                     // Короткая вспышка на каждое нажатие
+                     gpio_put(LED_DEBUG_PIN, 0); busy_wait_us(200); gpio_put(LED_DEBUG_PIN, 1);
+                     
+                     // Обработка маппинга
+                     // pkt->report - это массив байтов отчета
+                     process_kbd_report(pkt->report);
                  }
             }
             break;

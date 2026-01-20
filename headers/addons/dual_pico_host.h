@@ -7,6 +7,13 @@
 
 #define DualPicoHostName "DualPicoHost"
 
+// Структура для хранения промежуточного состояния ввода
+struct DualHostState {
+    uint8_t dpad;
+    uint16_t buttons;
+    uint16_t lx, ly, rx, ry;
+};
+
 class DualPicoHostAddon : public GPAddon {
 public:
     virtual bool available();
@@ -21,6 +28,10 @@ private:
     void process_serial();
     void handle_packet(const uint8_t* data, uint16_t len);
     
+    // Новые методы для обработки ввода
+    void process_kbd_report(const uint8_t* report_data);
+    void reset_host_state();
+
     // Отправка
     void send_b_init();
     void serial_write(const uint8_t* data, uint16_t len);
@@ -36,12 +47,11 @@ private:
     bool connection_established;
     uint32_t last_handshake_sent;
     
-    // Карта типов устройств (0 = нет, 1 = клава, 2 = мышь)
-    // Добавлено для отслеживания подключений
+    // Карта типов устройств
     uint8_t dev_type_map[32];
 
-    // Для теста ввода
-    bool test_button_pressed;
+    // Текущее состояние ввода (вместо test_button_pressed)
+    DualHostState _host_state;
 };
 
 #endif
