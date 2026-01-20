@@ -41,21 +41,18 @@ void DualPicoHostAddon::setup() {
     gpio_put(LED_DEBUG_PIN, 1); sleep_ms(1000); gpio_put(LED_DEBUG_PIN, 0); sleep_ms(500);
 
     // --- 1. ПРИНУДИТЕЛЬНАЯ ИНИЦИАЛИЗАЦИЯ ---
-    // Это решает проблему порядка загрузки. Мы просим менеджер настроить UART прямо сейчас.
     PeripheralManager::getInstance().initUART();
 
-    // --- 2. ПРОВЕРКА НАСТРОЕК В ХРАНИЛИЩЕ (Сырые данные) ---
+    // --- 2. ПРОВЕРКА НАСТРОЕК ---
     const PeripheralOptions& periphOptions = Storage::getInstance().getPeripheralOptions();
     
     if (!periphOptions.blockUART1.enabled) {
-        // ОШИБКА 2: В настройках выключен UART1
         debug_blink(2, 300);
         active_uart = nullptr;
         return;
     }
 
     if (periphOptions.blockUART1.txPin == -1 || periphOptions.blockUART1.rxPin == -1) {
-        // ОШИБКА 3: Пины не назначены (Unset)
         debug_blink(3, 300);
         active_uart = nullptr;
         return;
@@ -64,23 +61,20 @@ void DualPicoHostAddon::setup() {
     // --- 3. ПОЛУЧЕНИЕ ОБЪЕКТА ---
     PeripheralUART* pUart = PeripheralManager::getInstance().getUART(1);
     if (!pUart) {
-        // Этого быть не должно, если initUART() отработал
-        debug_blink(10, 100); // Panic
+        debug_blink(10, 100); 
         active_uart = nullptr;
         return;
     }
 
     // --- 4. ПРОВЕРКА СТАТУСА ---
     if (!pUart->configured) {
-        // ОШИБКА 4: Объект есть, но setup() внутри него не прошел.
-        // Скорее всего проблема в peripheral_uart.cpp (мы ее исправили выше)
         debug_blink(4, 300);
         active_uart = nullptr;
         return;
     }
 
     // --- 5. УСПЕХ ---
-    debug_blink(5, 100); // 5 быстрых вспышек = OK
+    debug_blink(5, 100);
 
     active_uart = pUart->getDriver();
     rx_idx = 0;
@@ -88,6 +82,9 @@ void DualPicoHostAddon::setup() {
     connection_established = false;
     last_handshake_sent = 0;
     test_button_pressed = false;
+
+    // Очистка карты устройств
+    for(int i=0; i<32; i++) dev_type_map[i] = 0;
 
     send_b_init();
 }
@@ -101,7 +98,7 @@ void DualPicoHostAddon::process() {
 
     uint32_t now = to_ms_since_boot(get_absolute_time());
 
-    // HEARTBEAT: Короткая вспышка раз в секунду, если нет связи
+    // HEARTBEAT
     if (!connection_established && (now - last_handshake_sent > 1000)) {
         gpio_put(LED_DEBUG_PIN, 1);
         busy_wait_us(10000); 
@@ -154,7 +151,7 @@ void DualPicoHostAddon::process_serial() {
         uint8_t c = uart_getc(active_uart);
         bytes_read++;
 
-        // RX ACTIVITY: Если связи нет, инвертируем LED при каждом байте
+        // RX ACTIVITY
         if (!connection_established) {
             gpio_put(LED_DEBUG_PIN, !gpio_get(LED_DEBUG_PIN));
         }
@@ -196,13 +193,46 @@ void DualPicoHostAddon::handle_packet(const uint8_t* data, uint16_t len) {
             send_b_init();
             break;
 
+        // --- НОВАЯ ЛОГИКА ПОДКЛЮЧЕНИЯ УСТРОЙСТВ ---
+        case DualCommand::DEVICE_CONNECTED:
+            if (len >= sizeof(device_connected_t)) {
+                const device_connected_t* pkt = (const device_connected_t*)data;
+                if (pkt->dev_addr < 32) {
+                    // Сохраняем тип устройства
+                    dev_type_map[pkt->dev_addr] = pkt->itf_num;
+
+                    // СПЕЦИАЛЬНЫЙ СИГНАЛ: 5 быстрых вспышек при подключении клавы/мыши
+                    // Это подтвердит, что ивент обработан
+                    gpio_put(LED_DEBUG_PIN, 0); // выключаем
+                    debug_blink(6, 100);
+                    if (connection_established) gpio_put(LED_DEBUG_PIN, 1); // возвращаем свет
+                }
+            }
+            break;
+
+        case DualCommand::DEVICE_DISCONNECTED:
+            if (len >= sizeof(device_disconnected_t)) {
+                const device_disconnected_t* pkt = (const device_disconnected_t*)data;
+                if (pkt->dev_addr < 32) {
+                    // Очищаем запись о устройстве
+                    dev_type_map[pkt->dev_addr] = 0;
+
+                    // 3 средних вспышки (DISCONNECT)
+                    gpio_put(LED_DEBUG_PIN, 0); 
+                    debug_blink(3, 150);         
+                    if (connection_established) gpio_put(LED_DEBUG_PIN, 1);
+                }
+            }
+            break;
+        // -------------------------------------------
+
         case DualCommand::REPORT_RECEIVED:
             if (connection_established) {
                  gpio_put(LED_DEBUG_PIN, 0);
                  busy_wait_us(200); 
                  gpio_put(LED_DEBUG_PIN, 1);
                  
-                 // Test Spacebar (0x2C)
+                 // Test Spacebar (0x2C) - старая логика
                  if (len >= 3 + 8) {
                      bool space = false;
                      for (int i = 5; i < 11; i++) { 

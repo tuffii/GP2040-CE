@@ -36,6 +36,10 @@ private:
     bool connection_established;
     uint32_t last_handshake_sent;
     
+    // Карта типов устройств (0 = нет, 1 = клава, 2 = мышь)
+    // Добавлено для отслеживания подключений
+    uint8_t dev_type_map[32];
+
     // Для теста ввода
     bool test_button_pressed;
 };
