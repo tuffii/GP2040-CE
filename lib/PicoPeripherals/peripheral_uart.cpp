@@ -1,7 +1,7 @@
 #include "peripheral_uart.h"
 
 PeripheralUART::PeripheralUART() {
-    _UART = uart0;
+    _UART = uart0; // Дефолтное значение
     _TX = -1;
     _RX = -1;
     _CTS = -1;
@@ -12,7 +12,8 @@ PeripheralUART::PeripheralUART() {
 
 void PeripheralUART::setConfig(uint8_t block, int8_t tx, int8_t rx, int8_t cts, int8_t rts, uint32_t speed) {
     if (block < NUM_UARTS) {
-        _UART = _hardwareBlocks[block];
+        _UART = (block == 0) ? uart0 : uart1;
+        
         _TX = tx;
         _RX = rx;
         _CTS = cts;
@@ -43,7 +44,6 @@ void PeripheralUART::setup() {
     uart_set_fifo_enabled(_UART, true);
     uart_set_translate_crlf(_UART, false);
 
-    // Только теперь считаем, что все настроено
     configured = true;
 }
 
@@ -58,6 +58,12 @@ bool PeripheralUART::isReadable() {
 void PeripheralUART::write(uint8_t data) {
     if (configured) {
         uart_putc_raw(_UART, data);
+    }
+}
+
+void PeripheralUART::write(const uint8_t* data, uint32_t len) {
+    if (configured && uart_is_writable(_UART)) {
+        uart_write_blocking(_UART, data, len);
     }
 }
 

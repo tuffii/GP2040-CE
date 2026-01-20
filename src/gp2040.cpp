@@ -17,7 +17,7 @@
 #include "addons/focus_mode.h"
 #include "addons/dualdirectional.h"
 #include "addons/tilt.h"
-#include "addons/dual_pico_host.h"
+#include "addons/uart_input_addon.h"
 #include "addons/keyboard_host.h"
 #include "addons/i2canalog1219.h"
 #include "addons/reverse.h"
@@ -64,6 +64,7 @@ void GP2040::setup() {
 	// I2C & SPI rely on the system clock
 	PeripheralManager::getInstance().initSPI();
 	PeripheralManager::getInstance().initI2C();
+	PeripheralManager::getInstance().initUART();
 
 	Gamepad * gamepad = new Gamepad();
 	Gamepad * processedGamepad = new Gamepad();
@@ -126,7 +127,7 @@ void GP2040::setup() {
 	addons.LoadAddon(new ReverseInput());
 	addons.LoadAddon(new TurboInput()); // Turbo overrides button states and should be close to the end
 	addons.LoadAddon(new InputMacro());
-	addons.LoadAddon(new DualPicoHostAddon());
+	addons.LoadAddon(new UARTInputAddon());
 
 	InputMode inputMode = gamepad->getOptions().inputMode;
 	const BootAction bootAction = getBootAction();

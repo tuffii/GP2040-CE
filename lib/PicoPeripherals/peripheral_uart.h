@@ -26,13 +26,14 @@ public:
     bool isReadable();
     
     void write(uint8_t data);
+    void write(const uint8_t* data, uint32_t len);
+    
     uint8_t read();
     
     uart_inst_t* getDriver() { return _UART; }
 
 private:
     uart_inst_t* _UART;
-    uart_inst_t* _hardwareBlocks[NUM_UARTS] = {uart0, uart1};
 
     int8_t _TX;
     int8_t _RX;
