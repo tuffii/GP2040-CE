@@ -42,8 +42,6 @@ private:
     
     uint32_t calculateCRC32(const uint8_t* buf, int len);
     void resetState();
-    
-    static const uint32_t crc_table[256];
 };
 
 #endif
