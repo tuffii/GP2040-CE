@@ -1,9 +1,12 @@
-#ifndef _UART_INPUT_ADDON_H_
-#define _UART_INPUT_ADDON_H_
+#pragma once
 
 #include "gpaddon.h"
 #include "peripheralmanager.h"
-#include "addons/uart_header.h"
+#include "uart_packet_handler.h"
+#include "uart_slip_frame_decoder.h"
+#include "uart_header.h"
+#include <cstdint>
+#include <string>
 
 #ifndef DUAL_UART_BLOCK
 #define DUAL_UART_BLOCK 1
@@ -11,37 +14,24 @@
 
 class UARTInputAddon : public GPAddon {
 public:
-    UARTInputAddon() : uart(nullptr), isEnabled(false) {} // Инициализация!
+    UARTInputAddon(): uart(nullptr), isEnabled(false), slip(), handler() {};
 
-    virtual bool available();
-    virtual void setup();
-    virtual void preprocess();
-    virtual void process();
-    virtual void postprocess(bool) {}
-    virtual void reinit();
-    virtual std::string name() { return "DualPicoHost"; }
+    virtual bool available() override;
+    virtual void setup() override;
+    virtual void preprocess() override;
+    virtual void process() override {}
+    virtual void postprocess(bool) override {}
+    virtual void reinit() override;
+
+    virtual std::string name() override { return "DualPicoHost"; }
 
 private:
-    PeripheralUART* uart;
-    bool isEnabled; // Флаг успешной инициализации
+    PeripheralUART* uart;           // UART, который мы используем
+    bool isEnabled;                 // Флаг успешной инициализации
 
-    // Буферы для SLIP
-    static const size_t BUFFER_SIZE = 512;
-    uint8_t rxBuffer[BUFFER_SIZE];
-    uint16_t rxIndex = 0;
-    bool escaped = false;
+    SlipFrameDecoder slip;          // SLIP-декодер
+    UARTPacketHandler handler;      // Обработчик готовых пакетов
 
-    void readUart();
-    void handlePacket(const uint8_t* data, uint16_t len);
+    // Отправка пакета через UART с SLIP + CRC
     void sendPacket(const uint8_t* data, uint16_t len);
-    
-    void handleRequestBInit();
-    void handleReportReceived(const uint8_t* data, uint16_t len);
-    void handleDeviceConnected(const uint8_t* data, uint16_t len);
-    void handleDeviceDisconnected(const uint8_t* data, uint16_t len);
-    
-    uint32_t calculateCRC32(const uint8_t* buf, int len);
-    void resetState();
 };
-
-#endif
