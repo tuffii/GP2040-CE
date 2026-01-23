@@ -22,8 +22,12 @@ struct usage_def_t {
     uint32_t index = 0;
     uint32_t count = 0;
     uint32_t usage_maximum;
-    int32_t* input_state_0 = NULL;
-    int32_t* input_state_n = NULL;
+    
+    // ИСПРАВЛЕНИЕ: Убрали указатели, используем значение напрямую.
+    // Для relative значений здесь будет храниться накопленный итог.
+    int32_t current_value = 0; 
+    bool has_value = false; // Флаг инициализации
+    
     uint8_t index_mask = 0;
 };
 

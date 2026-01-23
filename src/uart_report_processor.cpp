@@ -20,37 +20,54 @@ inline void debug_blink(int count, int speed_ms) {
 UARTReportProcessor::UARTReportProcessor(UARTInputState& state)
     : uartState(state) {}
 
-// Обрабатываем новый HID-отчёт
 void UARTReportProcessor::processReport(UARTDeviceContext& device, const uint8_t* report, size_t len) {
-    if (!report || !device.active) return;
+    if (!report || !device.active || len == 0) return;
 
-    for (auto& [report_id, usageMap] : device.usages) {
-        // Проверка Report ID (если используется)
-        // Если устройство использует Report ID, первый байт отчета может быть ID.
-        // Обычно hid_remapper обрабатывает смещение данных до вызова processReport или внутри.
-        // Предположим, что report уже указывает на данные (или обрабатывается корректно).
-        
-        for (auto& [usage, def] : usageMap) {
-            // ПЕРЕДАЕМ usage (сам ID клавиши) в extractValue
-            int32_t value = extractValue(report, len, def, usage);
-            
-            bool pressed = (value != 0);
-            applyUsageToState(usage, def, pressed);
+    uint8_t incomingReportId = 0;
+    const uint8_t* data = report;
+    size_t dataLen = len;
+
+    // 1. Логика Report ID
+    if (device.hasReportId) {
+        incomingReportId = report[0];
+        if (len > 1) {
+            data = report + 1;
+            dataLen = len - 1;
+        } else {
+            return; 
         }
+    }
+
+    // 2. Ищем usages только для текущего Report ID
+    auto it = device.usages.find(incomingReportId);
+    if (it == device.usages.end()) {
+        return; 
+    }
+
+    // ВАЖНО: Используем ссылку, чтобы менять состояние (current_value) внутри карты
+    for (auto& [usage, def] : it->second) {
+        int32_t value = extractValue(data, dataLen, def, usage);
+        
+        bool pressed = (value != 0);
+        applyUsageToState(usage, def, pressed);
     }
 }
 
+int32_t UARTReportProcessor::extractValue(const uint8_t* report, size_t len, usage_def_t& def, uint32_t target_usage) { // Note: usage_def_t& def is not const anymore if we update state
+    // Проверяем границы с учетом размера элемента
+    if (!report || (def.bitpos / 8) >= len) return 0;
 
-// Извлекаем значение usage из отчёта
-int32_t UARTReportProcessor::extractValue(const uint8_t* report, size_t len, const usage_def_t& def, uint32_t target_usage) {
-    if (!report || def.bitpos / 8 >= len) return 0;
+    int32_t value = 0;
 
     if (def.is_array) {
         uint32_t byte_offset = def.bitpos / 8;
-        uint8_t search_value = target_usage & 0xFF;
-        for (uint32_t i = 0; i < def.count; i++) {
-            if (byte_offset + i >= len) break;
+        // Для клавиатур обычно 8-битные коды клавиш
+        uint8_t search_value = target_usage & 0xFF; 
+        
+        // Доп. защита границ
+        if (byte_offset + def.count > len) return 0;
 
+        for (uint32_t i = 0; i < def.count; i++) {
             if (report[byte_offset + i] == search_value) {
                 return 1;
             }
@@ -58,72 +75,62 @@ int32_t UARTReportProcessor::extractValue(const uint8_t* report, size_t len, con
         return 0;
     }
 
+    // Variable parsing
     uint32_t bitOffset = def.bitpos;
-    uint32_t value = 0;
-
-    // Собираем значение по битам
+    
     for (uint8_t i = 0; i < def.size; ++i) {
-        uint32_t byteIdx = (bitOffset + i) / 8;
-        uint32_t bitIdx  = (bitOffset + i) % 8;
+        uint32_t totalBit = bitOffset + i;
+        uint32_t byteIdx = totalBit / 8;
+        uint32_t bitIdx  = totalBit % 8;
+        
         if (byteIdx >= len) break;
 
         if (report[byteIdx] & (1 << bitIdx)) {
-            value |= 1 << i;
+            value |= (1 << i);
         }
     }
 
-    // Масштабирование и учёт логических границ
+    // Scaling
     if (def.should_be_scaled) {
         if (value > def.logical_maximum) value = def.logical_maximum;
         if (value < def.logical_minimum) value = def.logical_minimum;
     }
 
-    // Учёт относительных значений
+    // Relative value handling (без указателей)
     if (def.is_relative) {
-        // value будет суммироваться с прошлым состоянием
-        if (def.input_state_0) value += *(def.input_state_0);
+        // Если это первый замер, просто инициализируем, иначе суммируем
+        if (!def.has_value) {
+            def.current_value = value;
+            def.has_value = true;
+        } else {
+            def.current_value += value;
+        }
+        // Для relative обычно интересен сам value (дельта), но если вам нужен абсолют:
+        // return def.current_value; 
+        // Если вы обрабатываете дельты (например мышь), возвращаем value как есть:
+        return static_cast<int32_t>(value);
     }
 
     return static_cast<int32_t>(value);
 }
 
-// Обновление текущего и предыдущего состояния usage
 void UARTReportProcessor::updateUsageState(usage_def_t& usage, int32_t value) {
-    if (!usage.input_state_0) {
-        // Инициализация при первом использовании
-        usage.input_state_n = new int32_t(0);
-        usage.input_state_0 = new int32_t(value);
-    } else {
-        // Сохраняем прошлое состояние
-        *(usage.input_state_n) = *(usage.input_state_0);
-        *(usage.input_state_0) = value;
-    }
+    // Этот метод теперь можно удалить или упростить, так как состояние в структуре
+    usage.current_value = value;
+    usage.has_value = true;
 }
 
-// Генерация события по новому значению (оставлено для заполнения)
-void UARTReportProcessor::applyUsageToState(
-    uint32_t usage,
-    const usage_def_t& def,
-    bool pressed
-) {
+void UARTReportProcessor::applyUsageToState(uint32_t usage, const usage_def_t& def, bool pressed) {
     uint32_t mask = 0;
-
-    // def.bitpos, def.is_relative
-
-    // if (def.is_array) {
-    //     debug_blink(1, 15);
-    // }
 
     switch (usage) {
         case 0x07002C: // Keyboard Space
-            debug_blink(1, 15);
             mask = GAMEPAD_MASK_B1;
             break;
-
         case 0x090001: // Mouse Left
             mask = GAMEPAD_MASK_B2;
             break;
-
+        // Добавьте остальные кнопки здесь
         default:
             return;
     }
@@ -134,4 +141,3 @@ void UARTReportProcessor::applyUsageToState(
         uartState.buttons &= ~mask;
     }
 }
-

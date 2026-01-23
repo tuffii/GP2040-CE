@@ -127,6 +127,10 @@ void UARTDescriptorParser::processItem(UARTDeviceContext& device,
                     range_min = usages.front();
                     range_max = usages.back(); // Упрощение
                 }
+
+                if (range_max > range_min + 255) {
+                    range_max = range_min + 255;
+                }
                 
                 // ВАЖНО: Регистрируем usage для каждого возможного скан-кода
                 if (range_max >= range_min) {
