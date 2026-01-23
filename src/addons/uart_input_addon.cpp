@@ -22,7 +22,7 @@ UARTInputAddon::UARTInputAddon()
       isEnabled(false),
       slip(),
       deviceManager(),
-      reportProcessor(),
+      reportProcessor(uartState),
       packetHandler(deviceManager, reportProcessor) {
 }
 
@@ -70,6 +70,9 @@ void UARTInputAddon::preprocess() {
             packetHandler.handlePacket(slip.frameData(), slip.frameSize());
         }
     }
+
+    Gamepad* gamepad = Storage::getInstance().GetGamepad();
+    gamepad->state.buttons |= uartState.buttons;
 }
 
 void UARTInputAddon::sendPacket(const uint8_t* data, uint16_t len) {

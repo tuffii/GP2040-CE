@@ -1,22 +1,45 @@
 #include "uart_report_processor.h"
+#include "storagemanager.h"
+#include "pico/stdlib.h"
 #include <cstring>
 #include <algorithm>
 
+#ifndef LED_PIN_DEBUG
+#define LED_PIN_DEBUG 25
+#endif
+
+inline void debug_blink(int count, int speed_ms) {
+    for (int i = 0; i < count; i++) {
+        gpio_put(LED_PIN_DEBUG, 1);
+        sleep_ms(speed_ms);
+        gpio_put(LED_PIN_DEBUG, 0);
+        sleep_ms(speed_ms);
+    }
+}
+
+UARTReportProcessor::UARTReportProcessor(UARTInputState& state)
+    : uartState(state) {}
+
 // Обрабатываем новый HID-отчёт
-void UARTReportProcessor::processReport(UARTDeviceContext& device, const uint8_t* report, size_t len) {
-    if (!report || len == 0 || !device.active) return;
+void UARTReportProcessor::processReport(
+    UARTDeviceContext& device,
+    const uint8_t* report,
+    size_t len
+) {
+    if (!report || !device.active) return;
 
-    // Проходим по всем report_id и usage
     for (auto& [report_id, usageMap] : device.usages) {
-        for (auto& [usage, usageDef] : usageMap) {
-            int32_t value = extractValue(report, len, usageDef);
-            updateUsageState(usageDef, value);
+        for (auto& [usage, def] : usageMap) {
 
-            // ⚠️ Генерация события для нового значения
-            generateEvent(device, usageDef);
+            int32_t value = extractValue(report, len, def);
+
+            bool pressed = (value != 0);
+
+            applyUsageToState(usage, def, pressed);
         }
     }
 }
+
 
 // Извлекаем значение usage из отчёта
 int32_t UARTReportProcessor::extractValue(const uint8_t* report, size_t len, const usage_def_t& usage) {
@@ -65,11 +88,32 @@ void UARTReportProcessor::updateUsageState(usage_def_t& usage, int32_t value) {
 }
 
 // Генерация события по новому значению (оставлено для заполнения)
-void UARTReportProcessor::generateEvent(UARTDeviceContext& device, const usage_def_t& usage) {
-    // Здесь можно:
-    // - сравнивать *(usage.input_state_0) и *(usage.input_state_n)
-    // - формировать событие (кнопка нажата/отпущена, движение оси)
-    // - отправлять в другой класс/в систему событий
-    // Например:
-    // if (*(usage.input_state_0) != *(usage.input_state_n)) { ... }
+void UARTReportProcessor::applyUsageToState(
+    uint32_t usage,
+    const usage_def_t& def,
+    bool pressed
+) {
+    uint32_t mask = 0;
+
+    // def.bitpos, def.is_relative
+
+    switch (usage) {
+        case 0x07002C: // Keyboard Space
+            mask = GAMEPAD_MASK_B1;
+            break;
+
+        case 0x090001: // Mouse Left
+            mask = GAMEPAD_MASK_B2;
+            break;
+
+        default:
+            return;
+    }
+
+    if (pressed) {
+        uartState.buttons |= mask;
+    } else {
+        uartState.buttons &= ~mask;
+    }
 }
+

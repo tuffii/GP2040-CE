@@ -4,9 +4,13 @@
 #include <cstddef>
 #include <cstdint>
 #include "uart_device_context.h"
+#include "uart_input_state.h"
 
 class UARTReportProcessor {
 public:
+
+    explicit UARTReportProcessor(UARTInputState& state);
+
     void processReport(UARTDeviceContext& device, const uint8_t* report, size_t len);
 
 private:
@@ -14,7 +18,9 @@ private:
 
     void updateUsageState(usage_def_t& usage, int32_t value);
 
-    void generateEvent(UARTDeviceContext& device, const usage_def_t& usage);
+    void applyUsageToState(uint32_t usage, const usage_def_t& def, bool pressed);
+
+    UARTInputState& uartState;
 };
 
 #endif

@@ -7,6 +7,7 @@
 #include "uart_packet_handler.h"
 #include "uart_device_manager.h"
 #include "uart_report_processor.h"
+#include "uart_input_state.h"
 #include <cstdint>
 #include <string>
 
@@ -26,16 +27,19 @@ public:
     virtual void reinit() override;
 
     virtual std::string name() override { return "DualPicoHost"; }
-
 private:
     PeripheralUART* uart;
     bool isEnabled;
 
     SlipFrameDecoder slip;
 
+    UARTInputState uartState;
+
     UARTDeviceManager deviceManager;
     UARTReportProcessor reportProcessor;
     UARTPacketHandler packetHandler;
+
+    
 
     void sendPacket(const uint8_t* data, uint16_t len);
 };
