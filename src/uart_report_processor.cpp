@@ -21,20 +21,20 @@ UARTReportProcessor::UARTReportProcessor(UARTInputState& state)
     : uartState(state) {}
 
 // Обрабатываем новый HID-отчёт
-void UARTReportProcessor::processReport(
-    UARTDeviceContext& device,
-    const uint8_t* report,
-    size_t len
-) {
+void UARTReportProcessor::processReport(UARTDeviceContext& device, const uint8_t* report, size_t len) {
     if (!report || !device.active) return;
 
     for (auto& [report_id, usageMap] : device.usages) {
+        // Проверка Report ID (если используется)
+        // Если устройство использует Report ID, первый байт отчета может быть ID.
+        // Обычно hid_remapper обрабатывает смещение данных до вызова processReport или внутри.
+        // Предположим, что report уже указывает на данные (или обрабатывается корректно).
+        
         for (auto& [usage, def] : usageMap) {
-
-            int32_t value = extractValue(report, len, def);
-
+            // ПЕРЕДАЕМ usage (сам ID клавиши) в extractValue
+            int32_t value = extractValue(report, len, def, usage);
+            
             bool pressed = (value != 0);
-
             applyUsageToState(usage, def, pressed);
         }
     }
@@ -42,14 +42,27 @@ void UARTReportProcessor::processReport(
 
 
 // Извлекаем значение usage из отчёта
-int32_t UARTReportProcessor::extractValue(const uint8_t* report, size_t len, const usage_def_t& usage) {
-    if (!report || usage.bitpos / 8 >= len) return 0;
+int32_t UARTReportProcessor::extractValue(const uint8_t* report, size_t len, const usage_def_t& def, uint32_t target_usage) {
+    if (!report || def.bitpos / 8 >= len) return 0;
 
-    uint32_t bitOffset = usage.bitpos;
+    if (def.is_array) {
+        uint32_t byte_offset = def.bitpos / 8;
+        uint8_t search_value = target_usage & 0xFF;
+        for (uint32_t i = 0; i < def.count; i++) {
+            if (byte_offset + i >= len) break;
+
+            if (report[byte_offset + i] == search_value) {
+                return 1;
+            }
+        }
+        return 0;
+    }
+
+    uint32_t bitOffset = def.bitpos;
     uint32_t value = 0;
 
     // Собираем значение по битам
-    for (uint8_t i = 0; i < usage.size; ++i) {
+    for (uint8_t i = 0; i < def.size; ++i) {
         uint32_t byteIdx = (bitOffset + i) / 8;
         uint32_t bitIdx  = (bitOffset + i) % 8;
         if (byteIdx >= len) break;
@@ -60,15 +73,15 @@ int32_t UARTReportProcessor::extractValue(const uint8_t* report, size_t len, con
     }
 
     // Масштабирование и учёт логических границ
-    if (usage.should_be_scaled) {
-        if (value > usage.logical_maximum) value = usage.logical_maximum;
-        if (value < usage.logical_minimum) value = usage.logical_minimum;
+    if (def.should_be_scaled) {
+        if (value > def.logical_maximum) value = def.logical_maximum;
+        if (value < def.logical_minimum) value = def.logical_minimum;
     }
 
     // Учёт относительных значений
-    if (usage.is_relative) {
+    if (def.is_relative) {
         // value будет суммироваться с прошлым состоянием
-        if (usage.input_state_0) value += *(usage.input_state_0);
+        if (def.input_state_0) value += *(def.input_state_0);
     }
 
     return static_cast<int32_t>(value);
@@ -97,8 +110,13 @@ void UARTReportProcessor::applyUsageToState(
 
     // def.bitpos, def.is_relative
 
+    // if (def.is_array) {
+    //     debug_blink(1, 15);
+    // }
+
     switch (usage) {
         case 0x07002C: // Keyboard Space
+            debug_blink(1, 15);
             mask = GAMEPAD_MASK_B1;
             break;
 

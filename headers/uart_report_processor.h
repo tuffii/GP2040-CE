@@ -14,7 +14,7 @@ public:
     void processReport(UARTDeviceContext& device, const uint8_t* report, size_t len);
 
 private:
-    int32_t extractValue(const uint8_t* report, size_t len, const usage_def_t& usage);
+    int32_t extractValue(const uint8_t* report, size_t len, const usage_def_t& usage, uint32_t target_usage);
 
     void updateUsageState(usage_def_t& usage, int32_t value);
 

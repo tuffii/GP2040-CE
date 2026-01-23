@@ -79,7 +79,7 @@ void UARTPacketHandler::handleReportReceived(const report_received_t* pkt,  uint
     UARTDeviceContext* dev = deviceManager.getDevice(pkt->dev_addr, pkt->interface);
 
     if (!dev) {
-        debug_blink(5, 70); // report от неизвестного устройства
+        // debug_blink(5, 70); // report от неизвестного устройства
         return;
     }
 
