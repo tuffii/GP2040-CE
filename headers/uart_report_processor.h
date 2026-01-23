@@ -18,7 +18,7 @@ private:
 
     void updateUsageState(usage_def_t& usage, int32_t value);
 
-    void applyUsageToState(uint32_t usage, const usage_def_t& def, bool pressed);
+    void applyUsageToState(uint32_t usage, const usage_def_t& def, int32_t value);
 
     UARTInputState& uartState;
 };

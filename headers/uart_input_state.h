@@ -9,6 +9,10 @@ struct UARTInputState {
     int16_t ly = 0;
     int16_t rx = 0;
     int16_t ry = 0;
+
+    int32_t mouse_x;
+    int32_t mouse_y;
+    int32_t mouse_wheel;
 };
 
 #endif

@@ -2,6 +2,20 @@
 #include "uart_descriptor_parser.h"
 #include <cstring>
 #include <algorithm>
+#include "pico/stdlib.h"
+
+#ifndef LED_PIN_DEBUG
+#define LED_PIN_DEBUG 25
+#endif
+
+inline void debug_blink(int count, int speed_ms) {
+    for (int i = 0; i < count; i++) {
+        gpio_put(LED_PIN_DEBUG, 1);
+        sleep_ms(speed_ms);
+        gpio_put(LED_PIN_DEBUG, 0);
+        sleep_ms(speed_ms);
+    }
+}
 
 void UARTDescriptorParser::parseDeviceDescriptor(UARTDeviceContext& device,
                                              const uint8_t* reportDescriptor,
@@ -47,6 +61,16 @@ void UARTDescriptorParser::parseDeviceDescriptor(UARTDeviceContext& device,
 
     // applyQuirks(device, reportDescriptor, len);
     // addSyntheticDpadUsages(device.usages);
+}
+
+static int32_t signExtend(uint32_t value, uint8_t size_bytes) {
+    uint8_t bits = size_bytes * 8;
+    int32_t sign_bit = 1 << (bits - 1);
+
+    if (value & sign_bit) {
+        return (int32_t)(value | (~((1 << bits) - 1)));
+    }
+    return (int32_t)value;
 }
 
 void UARTDescriptorParser::processItem(UARTDeviceContext& device,
@@ -183,11 +207,11 @@ void UARTDescriptorParser::processItem(UARTDeviceContext& device,
             break;
 
         case HID_LOGICAL_MINIMUM:
-            logical_min = (int32_t)value; // Учтите знаковое расширение при необходимости
+            logical_min = signExtend(value, item_size);
             break;
 
         case HID_LOGICAL_MAXIMUM:
-            logical_max = (int32_t)value;
+            logical_max = signExtend(value, item_size);
             break;
             
         case HID_COLLECTION:
@@ -227,6 +251,10 @@ void UARTDescriptorParser::markUsage(
     def.logical_maximum = logical_max;
 
     usageMap[report_id][usage] = def;
+
+    if (is_relative && logical_min < 0) {
+        // debug_blink(5, 50); // устройство с signed осью
+    }
 }
 
 // void UARTDescriptorParser::applyQuirks(UARTDeviceContext& device,
