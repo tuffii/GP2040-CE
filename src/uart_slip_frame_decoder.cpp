@@ -1,5 +1,6 @@
 #include "uart_slip_frame_decoder.h"
-#include "uart_header.h" // END, ESC, ESC_END, ESC_ESC, crc_table
+// #include "uart_protocol.h"
+#include "uart_slip.h"
 
 SlipFrameDecoder::SlipFrameDecoder() {
     reset();
@@ -15,8 +16,8 @@ SlipFrameDecoder::Result SlipFrameDecoder::push(uint8_t byte) {
     // 1. Обработка escape-состояния
     if (escaped) {
         if (index < MAX_FRAME_SIZE) {
-            if (byte == ESC_END)      buffer[index++] = END;
-            else if (byte == ESC_ESC) buffer[index++] = ESC;
+            if (byte == SLIP_ESC_END)      buffer[index++] = SLIP_END;
+            else if (byte == SLIP_ESC_ESC) buffer[index++] = SLIP_ESC;
             else                      buffer[index++] = byte;
         }
         escaped = false;
@@ -24,12 +25,12 @@ SlipFrameDecoder::Result SlipFrameDecoder::push(uint8_t byte) {
     }
 
     // 2. Управляющие байты
-    if (byte == ESC) {
+    if (byte == SLIP_ESC) {
         escaped = true;
         return Result::NONE;
     }
 
-    if (byte == END) {
+    if (byte == SLIP_END) {
         // Конец кадра
         if (index < 5) {
             // слишком короткий — сбрасываем

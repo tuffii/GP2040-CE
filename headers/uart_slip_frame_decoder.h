@@ -9,17 +9,15 @@ public:
     static constexpr size_t MAX_FRAME_SIZE = 512;
 
     enum class Result {
-        NONE,        // ничего не произошло
-        FRAME_OK,    // принят корректный кадр
-        FRAME_BAD    // кадр был, но CRC неверный
+        NONE,
+        FRAME_OK,
+        FRAME_BAD
     };
 
     SlipFrameDecoder();
 
-    // Кормим байтами из UART
     Result push(uint8_t byte);
 
-    // Доступ к последнему валидному кадру
     const uint8_t* frameData() const;
     size_t frameSize() const;
 
@@ -31,7 +29,6 @@ private:
     uint8_t buffer[MAX_FRAME_SIZE];
     size_t index;
     bool escaped;
-
     size_t lastFrameSize;
 };
 

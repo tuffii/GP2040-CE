@@ -1,19 +1,29 @@
 #include "addons/uart_input_addon.h"
 #include "storagemanager.h"
 #include "hardware/gpio.h"
+#include "uart_slip.h"
 #include <cstring>
 
 #ifndef LED_PIN_DEBUG
 #define LED_PIN_DEBUG 25
 #endif
 
-void debug_blink(int count, int speed_ms) {
+inline void debug_blink(int count, int speed_ms) {
     for (int i = 0; i < count; i++) {
         gpio_put(LED_PIN_DEBUG, 1);
         sleep_ms(speed_ms);
         gpio_put(LED_PIN_DEBUG, 0);
         sleep_ms(speed_ms);
     }
+}
+
+UARTInputAddon::UARTInputAddon()
+    : uart(nullptr),
+      isEnabled(false),
+      slip(),
+      deviceManager(),
+      reportProcessor(),
+      packetHandler(deviceManager, reportProcessor) {
 }
 
 bool UARTInputAddon::available() {
@@ -37,7 +47,7 @@ void UARTInputAddon::setup() {
         return;
     }
 
-    handler.setSendCallback([this](const uint8_t* data, uint16_t len){
+    packetHandler.setSendCallback([this](const uint8_t* data, uint16_t len) {
         this->sendPacket(data, len);
     });
     
@@ -57,7 +67,7 @@ void UARTInputAddon::preprocess() {
     while (uart->isReadable()) {
         auto res = slip.push(uart->read());
         if (res == SlipFrameDecoder::Result::FRAME_OK) {
-            handler.handlePacket(slip.frameData(), slip.frameSize());
+            packetHandler.handlePacket(slip.frameData(), slip.frameSize());
         }
     }
 }
@@ -67,15 +77,15 @@ void UARTInputAddon::sendPacket(const uint8_t* data, uint16_t len) {
 
     uint32_t crc = slip.calculateCRC32(data, len);
 
-    uart->write(END);
+    uart->write(SLIP_END);
 
     auto sendEscaped = [&](uint8_t b) {
-        if (b == END) {
-            uart->write(ESC);
-            uart->write(ESC_END);
-        } else if (b == ESC) {
-            uart->write(ESC);
-            uart->write(ESC_ESC);
+        if (b == SLIP_END) {
+            uart->write(SLIP_ESC);
+            uart->write(SLIP_ESC_END);
+        } else if (b == SLIP_ESC) {
+            uart->write(SLIP_ESC);
+            uart->write(SLIP_ESC_ESC);
         } else {
             uart->write(b);
         }
@@ -84,5 +94,5 @@ void UARTInputAddon::sendPacket(const uint8_t* data, uint16_t len) {
     for (uint16_t i = 0; i < len; i++) sendEscaped(data[i]);
     for (int i = 0; i < 4; i++) sendEscaped((crc >> (i * 8)) & 0xFF);
 
-    uart->write(END);
+    uart->write(SLIP_END);
 }

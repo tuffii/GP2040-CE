@@ -1,10 +1,12 @@
-#pragma once
+#ifndef _UART_INPUT_ADDON_H_
+#define _UART_INPUT_ADDON_H_
 
 #include "gpaddon.h"
 #include "peripheralmanager.h"
-#include "uart_packet_handler.h"
 #include "uart_slip_frame_decoder.h"
-#include "uart_header.h"
+#include "uart_packet_handler.h"
+#include "uart_device_manager.h"
+#include "uart_report_processor.h"
 #include <cstdint>
 #include <string>
 
@@ -14,7 +16,7 @@
 
 class UARTInputAddon : public GPAddon {
 public:
-    UARTInputAddon(): uart(nullptr), isEnabled(false), slip(), handler() {};
+    UARTInputAddon();
 
     virtual bool available() override;
     virtual void setup() override;
@@ -26,12 +28,16 @@ public:
     virtual std::string name() override { return "DualPicoHost"; }
 
 private:
-    PeripheralUART* uart;           // UART, который мы используем
-    bool isEnabled;                 // Флаг успешной инициализации
+    PeripheralUART* uart;
+    bool isEnabled;
 
-    SlipFrameDecoder slip;          // SLIP-декодер
-    UARTPacketHandler handler;      // Обработчик готовых пакетов
+    SlipFrameDecoder slip;
 
-    // Отправка пакета через UART с SLIP + CRC
+    UARTDeviceManager deviceManager;
+    UARTReportProcessor reportProcessor;
+    UARTPacketHandler packetHandler;
+
     void sendPacket(const uint8_t* data, uint16_t len);
 };
+
+#endif

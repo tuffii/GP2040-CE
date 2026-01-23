@@ -170,8 +170,13 @@ src/gamepad.cpp
 src/gamepad/GamepadState.cpp
 src/addonmanager.cpp
 src/playerleds.cpp
+
 src/uart_packet_handler.cpp
 src/uart_slip_frame_decoder.cpp
+src/uart_descriptor_parser.cpp
+src/uart_device_manager.cpp
+src/uart_report_processor.cpp
+
 src/drivers/shared/xinput_host.cpp
 src/drivers/shared/xgip_protocol.cpp
 src/drivers/shared/xsm3/excrypt_des.c
