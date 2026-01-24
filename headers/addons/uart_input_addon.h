@@ -28,6 +28,9 @@ public:
 
     virtual std::string name() override { return "DualPicoHost"; }
 private:
+
+    void applyMouse(Gamepad* gamepad);
+
     PeripheralUART* uart;
     bool isEnabled;
 
@@ -39,9 +42,11 @@ private:
     UARTReportProcessor reportProcessor;
     UARTPacketHandler packetHandler;
 
-    
+    uint16_t scaleMouseToJoystick(int8_t mouseVal);
 
     void sendPacket(const uint8_t* data, uint16_t len);
+
+    int16_t joystickMid;
 };
 
 #endif

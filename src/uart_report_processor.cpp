@@ -18,7 +18,8 @@ inline void debug_blink(int count, int speed_ms) {
 }
 
 UARTReportProcessor::UARTReportProcessor(UARTInputState& state)
-    : uartState(state) {}
+    : uartState(state) {
+    }
 
 void UARTReportProcessor::processReport(UARTDeviceContext& device, const uint8_t* report, size_t len) {
     if (!report || !device.active || len == 0) return;
@@ -141,22 +142,22 @@ void UARTReportProcessor::applyUsageToState(uint32_t usage, const usage_def_t& d
 
         // ===== Mouse axes (SIGNED) =====
         case 0x010030: // X
-            uartState.mouse_x += value;
-            if (value < 0) debug_blink(1, 20); // отладка
+            if (value != 0) {
+                uartState.mouse_dx = value;
+                uartState.mouseActive = true;
+            }
             break;
-
         case 0x010031: // Y
-            uartState.mouse_y += value;
-            if (value < 0) debug_blink(2, 20);
+            if (value != 0) {
+                uartState.mouse_dy = value;
+                uartState.mouseActive = true;
+            }
             break;
-
         case 0x010038: // Wheel
             uartState.mouse_wheel += value;
-            if (value < 0) debug_blink(3, 20);
             break;
 
         default:
             break;
     }
 }
-

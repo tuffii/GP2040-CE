@@ -1,5 +1,6 @@
 #include "addons/uart_input_addon.h"
 #include "storagemanager.h"
+#include "drivermanager.h"
 #include "hardware/gpio.h"
 #include "uart_slip.h"
 #include <cstring>
@@ -23,7 +24,10 @@ UARTInputAddon::UARTInputAddon()
       slip(),
       deviceManager(),
       reportProcessor(uartState),
-      packetHandler(deviceManager, reportProcessor) {
+      packetHandler(deviceManager, reportProcessor)
+{
+    joystickMid = DriverManager::getInstance().getDriver() != nullptr ?
+        DriverManager::getInstance().getDriver()->GetJoystickMidValue() : GAMEPAD_JOYSTICK_MID;
 }
 
 bool UARTInputAddon::available() {
@@ -73,6 +77,8 @@ void UARTInputAddon::preprocess() {
 
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     gamepad->state.buttons |= uartState.buttons;
+
+    applyMouse(gamepad);
 }
 
 void UARTInputAddon::sendPacket(const uint8_t* data, uint16_t len) {
@@ -98,4 +104,40 @@ void UARTInputAddon::sendPacket(const uint8_t* data, uint16_t len) {
     for (int i = 0; i < 4; i++) sendEscaped((crc >> (i * 8)) & 0xFF);
 
     uart->write(SLIP_END);
+}
+
+void UARTInputAddon::applyMouse(Gamepad* gamepad) {
+
+    if (uartState.mouseActive) {
+
+        uartState.mouseResetNextTimer = getMillis() + UART_MOUSE_RESET_MS;
+
+        #if UART_MOUSE_MOVE_LEFT_ANALOG
+                gamepad->state.lx = scaleMouseToJoystick(uartState.mouse_dx);
+                gamepad->state.ly = scaleMouseToJoystick(uartState.mouse_dy);
+        #else
+                gamepad->state.rx = scaleMouseToJoystick(uartState.mouse_dx);
+                gamepad->state.ry = scaleMouseToJoystick(uartState.mouse_dy);
+        #endif
+
+        uartState.mouseActive = false;
+    }
+    else if (uartState.mouseResetNextTimer < getMillis()) {
+
+    #if UART_MOUSE_MOVE_LEFT_ANALOG
+            gamepad->state.lx = joystickMid;
+            gamepad->state.ly = joystickMid;
+    #else
+            gamepad->state.rx = joystickMid;
+            gamepad->state.ry = joystickMid;
+    #endif
+    }
+
+    uartState.mouse_dx = 0;
+    uartState.mouse_dy = 0;
+}
+
+uint16_t UARTInputAddon::scaleMouseToJoystick(int8_t mouseVal) {
+  int32_t result = joystickMid + (int32_t)mouseVal * 4 * MOUSE_SCALE_FACTOR;
+  return std::clamp(result, GAMEPAD_JOYSTICK_MIN_I32, GAMEPAD_JOYSTICK_MAX_I32);
 }

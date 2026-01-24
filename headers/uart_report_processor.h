@@ -20,6 +20,8 @@ private:
 
     void applyUsageToState(uint32_t usage, const usage_def_t& def, int32_t value);
 
+    uint16_t scaleMouseToJoystick(int8_t mouseVal);
+
     UARTInputState& uartState;
 };
 
