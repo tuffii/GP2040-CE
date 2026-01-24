@@ -25,6 +25,10 @@ struct UARTInputState {
     int32_t mouse_wheel = 0;
 
     bool mouseActive = false;
+    int32_t key_w = 0;
+    int32_t key_a = 0;
+    int32_t key_s = 0;
+    int32_t key_d = 0;
 };
 
 #endif

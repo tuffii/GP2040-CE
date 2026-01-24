@@ -4,6 +4,7 @@
 #include "hardware/gpio.h"
 #include "uart_slip.h"
 #include <cstring>
+#include <cmath>
 
 #ifndef LED_PIN_DEBUG
 #define LED_PIN_DEBUG 25
@@ -82,6 +83,10 @@ void UARTInputAddon::preprocess() {
     gamepad->state.buttons |= uartState.buttons;
 
     applyMouse(gamepad);
+
+    applyKeyboardToLeftStick(gamepad);
+
+
 }
 
 
@@ -130,4 +135,19 @@ void UARTInputAddon::applyMouse(Gamepad* gamepad) {
 uint16_t UARTInputAddon::scaleMouseToJoystick(int32_t mouseVal) {
     int32_t result = joystickMid + mouseVal * (100 / 10.0f) * MOUSE_SCALE_FACTOR;
     return std::clamp(result, GAMEPAD_JOYSTICK_MIN_I32, GAMEPAD_JOYSTICK_MAX_I32);
+}
+
+void UARTInputAddon::applyKeyboardToLeftStick(Gamepad* gamepad) {
+    int32_t lx = joystickMid;
+    int32_t ly = joystickMid;
+
+    if (uartState.key_w) ly -= 32767; // вверх
+    if (uartState.key_s) ly += 32767; // вниз
+    if (uartState.key_a) lx -= 32767; // влево
+    if (uartState.key_d) lx += 32767; // вправо
+
+    uartState.lx = lx;
+    uartState.ly = ly;
+    gamepad->state.lx = lx;
+    gamepad->state.ly = ly;
 }

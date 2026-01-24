@@ -46,6 +46,8 @@ private:
 
     void sendPacket(const uint8_t* data, uint16_t len);
 
+    void applyKeyboardToLeftStick(Gamepad* gamepad);
+
     int16_t joystickMid;
     uint32_t mouseResetNextTimer = 0;
 };

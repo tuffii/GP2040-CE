@@ -124,20 +124,40 @@ void UARTReportProcessor::updateUsageState(usage_def_t& usage, int32_t value) {
 void UARTReportProcessor::applyUsageToState(uint32_t usage, const usage_def_t& def, int32_t value) {
     switch (usage) {
 
-        // ===== Keyboard =====
-        case 0x07002C: // Space
+        case 0x00090001: // Mouse Left Button -> RT
             if (value)
-                uartState.buttons |= GAMEPAD_MASK_B1;
+                uartState.buttons |= GAMEPAD_MASK_R2;
             else
-                uartState.buttons &= ~GAMEPAD_MASK_B1;
+                uartState.buttons &= ~GAMEPAD_MASK_R2;
             break;
 
-        // ===== Mouse buttons =====
-        case 0x090001: // Left
+        case 0x00090002: // Mouse Right Button -> LT
+            if (value)
+                uartState.buttons |= GAMEPAD_MASK_L2;
+            else
+                uartState.buttons &= ~GAMEPAD_MASK_L2;
+            break;
+
+        // ===== Keyboard =====
+        case 0x07002C: // Space
             if (value)
                 uartState.buttons |= GAMEPAD_MASK_B2;
             else
                 uartState.buttons &= ~GAMEPAD_MASK_B2;
+            break;
+
+        // ===== WASD =====
+        case 0x0007001A: // W
+            uartState.key_w = value;
+            break;
+        case 0x00070016: // S
+            uartState.key_s = value;
+            break;
+        case 0x00070004: // A
+            uartState.key_a = value;
+            break;
+        case 0x00070007: // D
+            uartState.key_d = value;
             break;
 
         // ===== Mouse axes (SIGNED) =====
