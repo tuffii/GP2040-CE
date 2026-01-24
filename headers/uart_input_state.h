@@ -10,7 +10,7 @@
 #define UART_MOUSE_MOVE_LEFT_ANALOG 0
 #define UART_MOUSE_MOVE_RIGHT_ANALOG 1
 
-#define UART_MOUSE_RESET_MS 20
+#define UART_MOUSE_RESET_MS 500
 
 struct UARTInputState {
     uint32_t buttons = 0;
@@ -25,7 +25,6 @@ struct UARTInputState {
     int32_t mouse_wheel = 0;
 
     bool mouseActive = false;
-    uint32_t mouseResetNextTimer = 0;
 };
 
 #endif

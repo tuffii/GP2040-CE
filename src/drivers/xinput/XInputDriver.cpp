@@ -6,6 +6,7 @@
 #include "drivers/xinput/XInputDriver.h"
 #include "drivers/shared/driverhelper.h"
 #include "storagemanager.h"
+#include <algorithm>
 
 #define USB_SETUP_DEVICE_TO_HOST 0x80
 #define USB_SETUP_HOST_TO_DEVICE 0x00
@@ -275,9 +276,15 @@ bool XInputDriver::process(Gamepad * gamepad) {
         | (gamepad->pressedB4() ? XBOX_MASK_Y    : 0)
     ;
 
-    xinputReport.lx = static_cast<int16_t>(gamepad->state.lx) + INT16_MIN;
+    int32_t lx = static_cast<int32_t>(gamepad->state.lx) - GAMEPAD_JOYSTICK_MID;
+    lx = std::clamp<int32_t>(lx, -32767, 32767);
+    xinputReport.lx = static_cast<int16_t>(lx);
+
+    int32_t rx = static_cast<int32_t>(gamepad->state.rx) - GAMEPAD_JOYSTICK_MID;
+    rx = std::clamp<int32_t>(rx, -32767, 32767);
+    xinputReport.rx = static_cast<int16_t>(rx);
+
     xinputReport.ly = static_cast<int16_t>(~gamepad->state.ly) + INT16_MIN;
-    xinputReport.rx = static_cast<int16_t>(gamepad->state.rx) + INT16_MIN;
     xinputReport.ry = static_cast<int16_t>(~gamepad->state.ry) + INT16_MIN;
 
     if (gamepad->hasAnalogTriggers)

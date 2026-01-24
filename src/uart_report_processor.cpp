@@ -142,16 +142,12 @@ void UARTReportProcessor::applyUsageToState(uint32_t usage, const usage_def_t& d
 
         // ===== Mouse axes (SIGNED) =====
         case 0x010030: // X
-            if (value != 0) {
-                uartState.mouse_dx = value;
-                uartState.mouseActive = true;
-            }
+            uartState.mouse_dx = value;
+            uartState.mouseActive = true;
             break;
         case 0x010031: // Y
-            if (value != 0) {
-                uartState.mouse_dy = value;
-                uartState.mouseActive = true;
-            }
+            uartState.mouse_dy = value;
+            uartState.mouseActive = true;
             break;
         case 0x010038: // Wheel
             uartState.mouse_wheel += value;

@@ -42,11 +42,12 @@ private:
     UARTReportProcessor reportProcessor;
     UARTPacketHandler packetHandler;
 
-    uint16_t scaleMouseToJoystick(int8_t mouseVal);
+    uint16_t scaleMouseToJoystick(int32_t mouseVal);
 
     void sendPacket(const uint8_t* data, uint16_t len);
 
     int16_t joystickMid;
+    uint32_t mouseResetNextTimer = 0;
 };
 
 #endif
