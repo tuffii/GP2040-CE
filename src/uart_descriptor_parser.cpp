@@ -238,6 +238,20 @@ void UARTDescriptorParser::markUsage(
     uint32_t count,
     uint32_t usage_max
 ) {
+
+    auto& report_usages = usageMap[report_id];
+    auto it = report_usages.find(usage);
+
+    if (it != report_usages.end()) {
+        // Если существующее определение - Variable (не массив), 
+        // а новое - Array (массив), то игнорируем новое.
+        // Это предотвращает перезапись конкретных битов модификаторов 
+        // общим диапазоном массива клавиш (0-255).
+        if (!it->second.is_array && is_array) {
+            return;
+        }
+    }
+
     usage_def_t def;
     def.report_id = report_id;
     def.bitpos = bitpos; // ТЕПЕРЬ здесь реальная позиция бита

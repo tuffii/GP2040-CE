@@ -139,11 +139,21 @@ void UARTReportProcessor::applyUsageToState(uint32_t usage, const usage_def_t& d
             break;
 
         // ===== Keyboard =====
+        case 0x0700E1: // LShift
+            if (value) {
+                uartState.buttons |= GAMEPAD_MASK_B2;
+                gpio_put(LED_PIN_DEBUG, 1);
+            }
+            else {
+                uartState.buttons &= ~GAMEPAD_MASK_B2;
+                gpio_put(LED_PIN_DEBUG, 0);
+            }  
+            break;
         case 0x07002C: // Space
             if (value)
-                uartState.buttons |= GAMEPAD_MASK_B2;
+                uartState.buttons |= GAMEPAD_MASK_B1;
             else
-                uartState.buttons &= ~GAMEPAD_MASK_B2;
+                uartState.buttons &= ~GAMEPAD_MASK_B1;
             break;
 
         // ===== WASD =====
