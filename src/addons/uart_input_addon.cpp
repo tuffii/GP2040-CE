@@ -81,12 +81,13 @@ void UARTInputAddon::preprocess() {
 
     Gamepad* gamepad = Storage::getInstance().GetGamepad();
     gamepad->state.buttons |= uartState.buttons;
+    gamepad->state.dpad |= uartState.dpad; 
 
     applyMouse(gamepad);
 
     applyKeyboardToLeftStick(gamepad);
 
-
+    uartState.mouse_wheel = 0;
 }
 
 
@@ -130,10 +131,14 @@ void UARTInputAddon::applyMouse(Gamepad* gamepad) {
     }
     gamepad->state.rx = uartState.rx;
     gamepad->state.ry = uartState.ry;
+
+    if (uartState.mouse_wheel < 0) {
+        gamepad->state.buttons |= GAMEPAD_MASK_L1;
+    }
 }
 
 uint16_t UARTInputAddon::scaleMouseToJoystick(int32_t mouseVal) {
-    int32_t result = joystickMid + mouseVal * (100 / 10.0f) * MOUSE_SCALE_FACTOR;
+    int32_t result = joystickMid + mouseVal * (70 / 10.0f) * MOUSE_SCALE_FACTOR;
     return std::clamp(result, GAMEPAD_JOYSTICK_MIN_I32, GAMEPAD_JOYSTICK_MAX_I32);
 }
 
@@ -145,6 +150,11 @@ void UARTInputAddon::applyKeyboardToLeftStick(Gamepad* gamepad) {
     if (uartState.key_s) ly += 32767; // вниз
     if (uartState.key_a) lx -= 32767; // влево
     if (uartState.key_d) lx += 32767; // вправо
+
+    if (uartState.mouse_wheel > 0) {
+        ly -= 32767; 
+        if (ly < GAMEPAD_JOYSTICK_MIN_I32) ly = GAMEPAD_JOYSTICK_MIN_I32; 
+    }
 
     uartState.lx = lx;
     uartState.ly = ly;

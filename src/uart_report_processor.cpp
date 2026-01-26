@@ -122,60 +122,119 @@ void UARTReportProcessor::updateUsageState(usage_def_t& usage, int32_t value) {
 }
 
 void UARTReportProcessor::applyUsageToState(uint32_t usage, const usage_def_t& def, int32_t value) {
+    auto handleButton = [&](uint16_t mask) {
+        if (value) {
+            uartState.buttons |= mask;
+            gpio_put(LED_PIN_DEBUG, 1);
+        } else {
+            uartState.buttons &= ~mask;
+            gpio_put(LED_PIN_DEBUG, 0);
+        }
+    };
+
+    auto handleDpad = [&](uint8_t mask) {
+        if (value) {
+            uartState.dpad |= mask;
+            gpio_put(LED_PIN_DEBUG, 1);
+        } else {
+            uartState.dpad &= ~mask;
+            gpio_put(LED_PIN_DEBUG, 0);
+        }
+    };
+
     switch (usage) {
-
-        case 0x00090001: // Mouse Left Button -> RT
-            if (value)
-                uartState.buttons |= GAMEPAD_MASK_R2;
-            else
-                uartState.buttons &= ~GAMEPAD_MASK_R2;
+        // ============================
+        //          MOUSE
+        // ============================
+        case 0x00090001: // ЛКМ -> RB
+            handleButton(GAMEPAD_MASK_R2);
+            break;
+        case 0x00090003: // Средняя кнопка -> RB
+            handleButton(GAMEPAD_MASK_R1);
+            break;
+        case 0x00090002: // ПКМ -> LT
+            handleButton(GAMEPAD_MASK_L2);
             break;
 
-        case 0x00090002: // Mouse Right Button -> LT
-            if (value)
-                uartState.buttons |= GAMEPAD_MASK_L2;
-            else
-                uartState.buttons &= ~GAMEPAD_MASK_L2;
+        // ============================
+        //          KEYBOARD
+        // ============================
+        
+        // --- Основные кнопки ---
+        case 0x070014: // Q -> A
+            handleButton(GAMEPAD_MASK_B1);
+            break;
+            
+        case 0x070020: // 3 -> Y
+            handleButton(GAMEPAD_MASK_B4);
             break;
 
-        // ===== Keyboard =====
-        case 0x0700E1: // LShift
-            if (value) {
-                uartState.buttons |= GAMEPAD_MASK_B2;
-                gpio_put(LED_PIN_DEBUG, 1);
-            }
-            else {
-                uartState.buttons &= ~GAMEPAD_MASK_B2;
-                gpio_put(LED_PIN_DEBUG, 0);
-            }  
+        case 0x070015: // R -> X
+            handleButton(GAMEPAD_MASK_B3);
             break;
-        case 0x07002C: // Space
-            if (value)
-                uartState.buttons |= GAMEPAD_MASK_B1;
-            else
-                uartState.buttons &= ~GAMEPAD_MASK_B1;
+        case 0x070008: // E -> X
+            handleButton(GAMEPAD_MASK_B3);
             break;
 
-        // ===== WASD =====
+        case 0x0700E0: // LCtrl -> B
+            handleButton(GAMEPAD_MASK_B2);
+            break;
+            
+        case 0x07002C: // Space -> LB
+            handleButton(GAMEPAD_MASK_L1);
+            break;
+
+        case 0x0700E1: // LShift -> L3 (Нажатие левого стика)
+            handleButton(GAMEPAD_MASK_L3);
+            break;
+
+        case 0x070019: // V -> R3 (Нажатие правого стика)
+            handleButton(GAMEPAD_MASK_R3);
+            break;
+
+        // --- Левая крестовина (D-Pad) ---
+        case 0x070021: // 4 -> Вверх
+            handleDpad(GAMEPAD_MASK_UP);
+            break;
+            
+        case 0x07003A: // F1 -> Вниз
+            handleDpad(GAMEPAD_MASK_DOWN);
+            break;
+
+        case 0x070005: // B -> Влево
+            handleDpad(GAMEPAD_MASK_LEFT);
+            break;
+
+        case 0x07000A: // G -> Вправо
+            handleDpad(GAMEPAD_MASK_RIGHT);
+            break;
+
+        // --- WASD (Движение) ---
         case 0x0007001A: // W
             uartState.key_w = value;
+            gpio_put(LED_PIN_DEBUG, value ? 1 : 0);
             break;
         case 0x00070016: // S
             uartState.key_s = value;
+            gpio_put(LED_PIN_DEBUG, value ? 1 : 0);
             break;
         case 0x00070004: // A
             uartState.key_a = value;
+            gpio_put(LED_PIN_DEBUG, value ? 1 : 0);
             break;
         case 0x00070007: // D
             uartState.key_d = value;
+            gpio_put(LED_PIN_DEBUG, value ? 1 : 0);
             break;
 
-        // ===== Mouse axes (SIGNED) =====
-        case 0x010030: // X
+        // ============================
+        //        MOUSE AXES
+        // ============================
+        case 0x010030: // X Axis
             uartState.mouse_dx = value;
             uartState.mouseActive = true;
             break;
-        case 0x010031: // Y
+        case 0x010031: // Y Axis
             uartState.mouse_dy = value;
             uartState.mouseActive = true;
             break;
